@@ -11,6 +11,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/saisai/webStudy/session"
+	_ "github.com/saisai/webStudy/session/providers/memory"
 )
 
 type MyMux struct {
@@ -41,31 +44,16 @@ func sayhelloName(w http.ResponseWriter, r *http.Request) {
 }
 
 func login(w http.ResponseWriter, r *http.Request) {
+
+	sess := globalSessions.SessionStart(w, r)
 	fmt.Println("method:", r.Method)
 	if r.Method == "GET" {
-		crutime := time.Now().Unix()
-		h := md5.New()
-		io.WriteString(h, strconv.FormatInt(crutime, 10))
-		token := fmt.Sprintf("%x", h.Sum(nil))
-
-		t, _ := template.ParseFiles("./template/login.gtpl")
-		log.Println(t.Execute(w, token))
+		t, _ := template.ParseFiles("template/login.gtpl")
+		w.Header().Set("Content-Type", "text/html")
+		t.Execute(w, sess.Get("username"))
 	} else {
-		r.ParseForm()
-		//		fmt.Println("username:", r.FormValue("username"))
-		//		fmt.Println("password:", r.FormValue("password"))
-
-		token := r.Form.Get("token")
-		if token != "" {
-			//验证token的合法性
-		} else {
-			//不存在token报错
-		}
-
-		fmt.Println("username length:", len(r.Form["username"][0]))
-		fmt.Println("username:", template.HTMLEscapeString(r.Form.Get("username")))
-		fmt.Println("password:", template.HTMLEscapeString(r.Form.Get("password")))
-		template.HTMLEscape(w, []byte(r.Form.Get("username")))
+		sess.Set("username", r.Form["username"])
+		http.Redirect(w, r, "/", 302)
 	}
 }
 
@@ -98,8 +86,11 @@ func upload(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func postFile(filename string, targetUrl string) error {
+var globalSessions *session.Manager
 
+func init() {
+	globalSessions, _ = session.NewManager("memory", "gosessionid", 3600)
+	go globalSessions.GC()
 }
 
 func main() {
